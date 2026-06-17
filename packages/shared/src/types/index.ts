@@ -151,3 +151,33 @@ export interface EarningsSummary {
   thisMonth: number;
   lifetime: number;
 }
+
+export interface AdminStats {
+  totalUsers: number;
+  totalAdvertisers: number;
+  totalCampaigns: number;
+  totalAds: number;
+  totalImpressions: number;
+  totalClicks: number;
+  totalEarningsPaise: number;
+  totalAdvertiserBalancePaise: number;
+}
+
+export interface AdminCampaignRow {
+  id: string;
+  name: string;
+  status: CampaignStatus;
+  budget: number;
+  spent: number;
+  advertiserName: string;
+  advertiserEmail: string;
+  createdAt: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  earnedPaise: number;
+}

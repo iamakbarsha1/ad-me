@@ -2,20 +2,16 @@ import { Router } from 'express';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { advertisers, payouts } from '../db/schema.js';
+import { verifyDodoSignature } from '../middleware/verify-dodo-signature.js';
 
 const router = Router();
 
-router.post('/dodo', async (req, res) => {
+router.post('/dodo', verifyDodoSignature, async (req, res) => {
   try {
-    // TODO: Verify Dodo Payments webhook signature before processing.
-    // Steps:
-    //   1. Retrieve the raw request body (needs express.raw() middleware for this route)
-    //   2. Compute HMAC-SHA256 of raw body using DODO_WEBHOOK_SECRET
-    //   3. Compare with the signature in req.headers['x-dodo-signature']
-    //   4. Return 401 if signature mismatch
-    // For now, signature verification is skipped (development mode).
-
-    const event = req.body as { type?: string; data?: Record<string, unknown> };
+    // Parse raw body (Buffer from express.raw()) or already-parsed JSON
+    const event = (Buffer.isBuffer(req.body)
+      ? JSON.parse(req.body.toString())
+      : req.body) as { type?: string; data?: Record<string, unknown> };
 
     if (!event.type || !event.data) {
       res.status(400).json({ error: 'Invalid webhook payload' });

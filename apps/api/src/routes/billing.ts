@@ -6,6 +6,49 @@ import { authMiddleware, requireRole, type AuthenticatedRequest } from '../middl
 import { db } from '../db/index.js';
 import { advertisers, adBlocks, campaigns } from '../db/schema.js';
 
+async function createDodoCheckout(advertiserId: string, amountPaise: number) {
+  const apiKey = process.env.DODO_API_KEY;
+
+  if (!apiKey) {
+    // Mock mode for development
+    return {
+      checkoutUrl: `https://checkout.dodopayments.com/mock?advertiserId=${advertiserId}&amount=${amountPaise}&currency=INR`,
+      amount: amountPaise,
+      advertiserId,
+      mock: true,
+    };
+  }
+
+  const response = await fetch('https://api.dodopayments.com/v1/payments', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      amount: amountPaise,
+      currency: 'INR',
+      metadata: { advertiserId },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    console.error('[dodo] checkout creation failed:', err);
+    throw new Error('Payment checkout creation failed');
+  }
+
+  const data = await response.json() as { checkout_url: string; id: string };
+
+  return {
+    checkoutUrl: data.checkout_url,
+    paymentId: data.id,
+    amount: amountPaise,
+    advertiserId,
+    mock: false,
+  };
+}
+
 const router = Router();
 
 router.use(authMiddleware, requireRole('advertiser', 'admin'));
@@ -26,21 +69,9 @@ router.post('/deposit', validate(depositSchema), async (req, res) => {
       return;
     }
 
-    // TODO: Integrate Dodo Payments API to create a real checkout session.
-    // Steps:
-    //   1. Call Dodo Payments POST /checkout with { amount, currency: 'INR', metadata: { advertiserId } }
-    //   2. Store a pending payment record linked to the advertiser
-    //   3. Return the real checkoutUrl from Dodo's response
-    //   4. On webhook payment.completed, credit advertiser balance (see webhooks.ts)
+    const checkoutResult = await createDodoCheckout(advertiser.id, amount);
 
-    const mockCheckoutUrl = `https://checkout.dodopayments.com/mock?advertiserId=${advertiser.id}&amount=${amount}&currency=INR`;
-
-    res.status(201).json({
-      checkoutUrl: mockCheckoutUrl,
-      amount,
-      advertiserId: advertiser.id,
-      note: 'Dodo Payments integration pending — this is a mock checkout URL',
-    });
+    res.status(201).json(checkoutResult);
   } catch (err) {
     console.error('POST /billing/deposit error:', err);
     res.status(500).json({ error: 'Internal server error' });

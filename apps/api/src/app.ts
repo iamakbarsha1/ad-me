@@ -19,6 +19,10 @@ const app = express();
 
 app.use(helmet());
 app.use(cors());
+
+// Webhooks need raw body for HMAC signature verification — mount before express.json()
+app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+
 app.use(express.json());
 app.use(defaultLimiter);
 
@@ -34,7 +38,6 @@ app.use('/auction', auctionRoutes);
 app.use('/billing', billingRoutes);
 app.use('/earnings', earningsRoutes);
 app.use('/payouts', payoutRoutes);
-app.use('/webhooks', webhookRoutes);
 app.use('/killswitch', killswitchRoutes);
 app.use('/leaderboard', leaderboardRoutes);
 app.use('/admin', adminRoutes);

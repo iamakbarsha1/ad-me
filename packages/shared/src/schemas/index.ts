@@ -82,3 +82,12 @@ export const payoutRequestSchema = z.object({
 export const depositSchema = z.object({
   amount: z.number().int().positive(), // paise
 });
+
+export const adminUpdateCampaignSchema = z.object({
+  status: z.enum(['active', 'paused', 'completed']),
+});
+
+export const leaderboardQuerySchema = z.object({
+  period: z.enum(['daily', 'weekly', 'monthly', 'alltime']).default('weekly'),
+  limit: z.coerce.number().int().positive().max(100).default(50),
+});
