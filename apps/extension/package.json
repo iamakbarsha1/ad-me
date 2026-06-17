@@ -1,0 +1,51 @@
+{
+  "name": "ad-me",
+  "displayName": "ad-me",
+  "description": "Earn money from AI thinking time with sponsored ads",
+  "version": "0.0.1",
+  "publisher": "ad-me",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "ad-me.login", "title": "ad-me: Sign In" },
+      { "command": "ad-me.logout", "title": "ad-me: Sign Out" },
+      { "command": "ad-me.toggleAds", "title": "ad-me: Toggle Ads" }
+    ],
+    "configuration": {
+      "title": "ad-me",
+      "properties": {
+        "ad-me.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable ad display"
+        },
+        "ad-me.surfaces": {
+          "type": "array",
+          "default": ["spinner_overlay", "thinking_shimmer", "status_bar", "spinner_verb"],
+          "description": "Ad surfaces to display"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "dev": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@ad-me/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node", "vscode"],
+    "lib": ["ES2022"],
+    "noEmit": true,
+    "composite": false
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
