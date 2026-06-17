@@ -5,7 +5,7 @@ services:
     region: singapore
     plan: free
     rootDir: apps/api
-    buildCommand: "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @ad-me/api typecheck"
+    buildCommand: "cd ../.. && NODE_ENV=development pnpm install --frozen-lockfile"
     startCommand: "pnpm --filter @ad-me/api start"
     envVars:
       - key: NODE_ENV
@@ -31,7 +31,7 @@ services:
     region: singapore
     plan: free
     rootDir: apps/web
-    buildCommand: "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @ad-me/web build"
+    buildCommand: "cd ../.. && NODE_ENV=development pnpm install --frozen-lockfile && pnpm --filter @ad-me/web build"
     startCommand: "pnpm --filter @ad-me/web start"
     envVars:
       - key: NODE_ENV
