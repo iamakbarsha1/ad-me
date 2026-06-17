@@ -1,20 +1,101 @@
 import { Router } from 'express';
+import { eq, desc } from 'drizzle-orm';
 import { validate } from '../middleware/validate.js';
 import { depositSchema } from '@ad-me/shared';
-import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { authMiddleware, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
+import { db } from '../db/index.js';
+import { advertisers, adBlocks, campaigns } from '../db/schema.js';
 
 const router = Router();
 
 router.use(authMiddleware, requireRole('advertiser', 'admin'));
 
 router.post('/deposit', validate(depositSchema), async (req, res) => {
-  // TODO: Create Dodo checkout session, return checkout URL
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { amount } = req.body as { amount: number };
+
+    const [advertiser] = await db
+      .select({ id: advertisers.id, balance: advertisers.balance })
+      .from(advertisers)
+      .where(eq(advertisers.userId, authReq.userId!))
+      .limit(1);
+
+    if (!advertiser) {
+      res.status(404).json({ error: 'Advertiser profile not found' });
+      return;
+    }
+
+    // TODO: Integrate Dodo Payments API to create a real checkout session.
+    // Steps:
+    //   1. Call Dodo Payments POST /checkout with { amount, currency: 'INR', metadata: { advertiserId } }
+    //   2. Store a pending payment record linked to the advertiser
+    //   3. Return the real checkoutUrl from Dodo's response
+    //   4. On webhook payment.completed, credit advertiser balance (see webhooks.ts)
+
+    const mockCheckoutUrl = `https://checkout.dodopayments.com/mock?advertiserId=${advertiser.id}&amount=${amount}&currency=INR`;
+
+    res.status(201).json({
+      checkoutUrl: mockCheckoutUrl,
+      amount,
+      advertiserId: advertiser.id,
+      note: 'Dodo Payments integration pending — this is a mock checkout URL',
+    });
+  } catch (err) {
+    console.error('POST /billing/deposit error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.get('/balance', async (req, res) => {
-  // TODO: Return advertiser balance
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const authReq = req as AuthenticatedRequest;
+
+    const [advertiser] = await db
+      .select({ id: advertisers.id, balance: advertisers.balance, createdAt: advertisers.createdAt })
+      .from(advertisers)
+      .where(eq(advertisers.userId, authReq.userId!))
+      .limit(1);
+
+    if (!advertiser) {
+      res.status(404).json({ error: 'Advertiser profile not found' });
+      return;
+    }
+
+    // Recent debits: ad_blocks created under this advertiser's campaigns
+    const transactions = await db
+      .select({
+        id: adBlocks.id,
+        campaignId: adBlocks.campaignId,
+        adId: adBlocks.adId,
+        surface: adBlocks.surface,
+        amount: adBlocks.bidAmount,
+        status: adBlocks.status,
+        createdAt: adBlocks.createdAt,
+      })
+      .from(adBlocks)
+      .innerJoin(campaigns, eq(campaigns.id, adBlocks.campaignId))
+      .where(eq(campaigns.advertiserId, advertiser.id))
+      .orderBy(desc(adBlocks.createdAt))
+      .limit(20);
+
+    res.json({
+      balance: advertiser.balance,
+      recentTransactions: transactions.map((t) => ({
+        id: t.id,
+        type: 'debit',
+        description: `Ad block purchased (${t.surface})`,
+        amount: t.amount,
+        campaignId: t.campaignId,
+        adId: t.adId,
+        status: t.status,
+        createdAt: t.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /billing/balance error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 export default router;

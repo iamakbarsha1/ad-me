@@ -17,8 +17,65 @@ export async function apiGet<T>(path: string, token: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) {
-    throw new Error('Request failed');
-  }
+  if (!res.ok) throw new Error('Request failed');
   return res.json();
+}
+
+function getAuthToken(): string {
+  if (typeof window === 'undefined') return '';
+  const stored = localStorage.getItem('ad-me-auth');
+  if (!stored) return '';
+  try {
+    return (JSON.parse(stored) as { accessToken?: string }).accessToken ?? '';
+  } catch {
+    return '';
+  }
+}
+
+async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> ?? {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error((err as { error?: string }).error || 'Request failed');
+  }
+  return res.json() as Promise<T>;
+}
+
+export function apiAuthGet<T>(path: string): Promise<T> {
+  return authFetch<T>(path, {});
+}
+
+export function apiAuthPost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return authFetch<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiAuthPatch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return authFetch<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiAuthPut<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return authFetch<T>(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiAuthDelete<T>(path: string): Promise<T> {
+  return authFetch<T>(path, { method: 'DELETE' });
 }

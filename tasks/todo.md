@@ -1,42 +1,56 @@
-# ad-me: M2 Ad Serving Core
+# ad-me: M3 Advertiser Portal + Billing
 
-## M1 — DONE (2 commits on main)
+## M1 — DONE
+## M2 — DONE (f018567)
 
-## M2 Tasks
+## M3 Tasks
 
-### 1. API: Ad serving service + GET /ads/next
-- [x] Create ad-serving.ts — auction: active blocks -> highest bid -> earliest tiebreak
-- [x] Implement GET /ads/next with surface query param
-- [x] Return AdServeResponse (ad + blockId)
+### API: Campaign CRUD
+- [x] GET /campaigns — list campaigns for authenticated advertiser
+- [x] GET /campaigns/:id — get single campaign with ads count
+- [x] POST /campaigns — create campaign (advertiser role)
+- [x] PATCH /campaigns/:id — update campaign name/status/budget/endDate
+- [x] DELETE /campaigns/:id — soft delete (set status=completed)
 
-### 2. API: Killswitch endpoint (real)
-- [x] Read killswitch table, return { enabled, reason }
+### API: Ad creation + management
+- [x] POST /campaigns/:campaignId/ads — create ad for campaign
+- [x] GET /campaigns/:campaignId/ads — list ads for campaign
 
-### 3. API: Telemetry endpoints (impression + click)
-- [x] POST /telemetry/impression — idempotent, increment block served, create earning
-- [x] POST /telemetry/click — idempotent, create earning at 50x rate
+### API: Auction bid
+- [x] POST /auction/bid — validate floor price, check balance, deduct, create ad_blocks
 
-### 4. Extension: Claude Code terminal spinner adapter
-- [x] Detect spinner patterns in active terminal (onDidWriteTerminalData + fallback poll)
-- [x] Fire onThinkingStart/onThinkingEnd callbacks (2s debounce)
+### API: Billing
+- [x] POST /billing/deposit — mock Dodo checkout (TODO: real integration)
+- [x] GET /billing/balance — return advertiser balance + recent debits
 
-### 5. Extension: 4 ad surfaces
-- [x] SpinnerOverlaySurface — WebviewView panel with HTML ad renderer
-- [x] ThinkingShimmerSurface — animated status bar with dot cycling
-- [x] StatusBarAdSurface — updated to AdServeResponse interface
-- [x] SpinnerVerbSurface — "Thinking... powered by" status bar
+### API: Earnings
+- [x] GET /earnings/summary — today/month/lifetime for authenticated user
+- [x] GET /earnings/history — paginated earnings list with type filter
 
-### 6. Extension: Prefetch + lifecycle wiring
-- [x] On activate: prefetch all surfaces
-- [x] On thinking start: show ad, start impression tracking
-- [x] On thinking end: hide ad, cancel tracking
-- [x] Wire killswitch poller to ApiClient
+### API: Payouts
+- [x] GET /payouts — list payout history
+- [x] POST /payouts/request — validate min threshold, create payout record
+- [x] PUT /payouts/settings — update UPI/bank payout details
 
-### 7. Seed data script
-- [x] seed.ts — test advertiser, campaign, 4 ads, ad blocks, killswitch row (13 rows seeded)
+### API: Webhooks
+- [x] POST /webhooks/dodo — handle payment.completed + payout.completed (signature TODO)
+
+### Web: Advertiser Portal
+- [x] Campaigns list page with create/edit/pause actions
+- [x] Campaign detail page with ads list
+- [x] Ad creation form with surface preview
+- [x] Billing page — deposit form + balance display
+
+### Web: Developer Dashboard
+- [x] Earnings page — summary cards + daily/monthly history table
+- [x] Payouts page — request form + history table + settings section
+
+### Web: Shared
+- [x] Enhanced API client with auth token helpers
+- [x] Advertiser layout with auth guard (require advertiser role)
 
 ## Verification
 - [x] Typecheck passes (all 5 packages)
-- [x] Seed script runs against Neon DB
-- [ ] GET /ads/next returns ad per surface (needs running server)
-- [ ] Killswitch returns status (needs running server)
+- [ ] Runtime test with running API server
+- [ ] Dodo Payments real integration (deferred — needs API keys)
+- [ ] Webhook signature verification (deferred — needs Dodo SDK)

@@ -1,20 +1,85 @@
 import { Router } from 'express';
+import { eq, sql } from 'drizzle-orm';
 import { validate } from '../middleware/validate.js';
-import { auctionBidSchema } from '@ad-me/shared';
-import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { auctionBidSchema, FLOOR_PRICES } from '@ad-me/shared';
+import { authMiddleware, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
+import { db } from '../db/index.js';
+import { advertisers, adBlocks } from '../db/schema.js';
 
 const router = Router();
 
 router.use(authMiddleware, requireRole('advertiser', 'admin'));
 
 router.post('/bid', validate(auctionBidSchema), async (req, res) => {
-  // TODO: Place bid, validate floor price, deduct balance, create ad_blocks
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { campaignId, adId, surface, bidAmount, blocks } = req.body as {
+      campaignId: string;
+      adId: string;
+      surface: keyof typeof FLOOR_PRICES;
+      bidAmount: number;
+      blocks: number;
+    };
+
+    // Validate floor price
+    const floorPrice = FLOOR_PRICES[surface];
+    if (bidAmount < floorPrice) {
+      res.status(400).json({
+        error: `Bid amount ${bidAmount} is below floor price ${floorPrice} for surface ${surface}`,
+      });
+      return;
+    }
+
+    const totalCost = bidAmount * blocks;
+
+    const [advertiser] = await db
+      .select({ id: advertisers.id, balance: advertisers.balance })
+      .from(advertisers)
+      .where(eq(advertisers.userId, authReq.userId!))
+      .limit(1);
+
+    if (!advertiser) {
+      res.status(404).json({ error: 'Advertiser profile not found' });
+      return;
+    }
+
+    if (advertiser.balance < totalCost) {
+      res.status(400).json({
+        error: `Insufficient balance. Required: ${totalCost} paise, Available: ${advertiser.balance} paise`,
+      });
+      return;
+    }
+
+    const createdBlocks = await db.transaction(async (tx) => {
+      // Deduct balance
+      await tx
+        .update(advertisers)
+        .set({ balance: sql`${advertisers.balance} - ${totalCost}`, updatedAt: new Date() })
+        .where(eq(advertisers.id, advertiser.id));
+
+      // Create ad blocks
+      const blockValues = Array.from({ length: blocks }, () => ({
+        campaignId,
+        adId,
+        surface,
+        bidAmount,
+      }));
+
+      return tx.insert(adBlocks).values(blockValues).returning();
+    });
+
+    res.status(201).json({
+      adBlocks: createdBlocks,
+      totalCost,
+      blocksCreated: createdBlocks.length,
+    });
+  } catch (err) {
+    console.error('POST /auction/bid error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-router.get('/floor', async (req, res) => {
-  // TODO: Return floor prices per surface
-  const { FLOOR_PRICES } = await import('@ad-me/shared');
+router.get('/floor', async (_req, res) => {
   res.json({ floors: FLOOR_PRICES });
 });
 
