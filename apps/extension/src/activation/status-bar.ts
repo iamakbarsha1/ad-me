@@ -14,9 +14,17 @@ export class StatusBarManager implements vscode.Disposable {
     this.item.show();
   }
 
+  showUnauthenticated(): void {
+    this.item.text = '$(pulse) ad-me: Sign in';
+    this.item.tooltip = 'Click to sign in to ad-me';
+    this.item.command = 'ad-me.login';
+    this.item.show();
+  }
+
   updateEarnings(paise: number): void {
     const rupees = (paise / 100).toFixed(2);
     this.item.text = `$(pulse) ad-me: ₹${rupees}`;
+    this.item.command = 'ad-me.toggleAds';
   }
 
   dispose(): void {

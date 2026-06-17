@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { StatusBarManager } from './activation/status-bar.js';
 import { TokenStore } from './auth/token-store.js';
+import { ApiClient } from './api/client.js';
+import { GoogleOAuthFlow } from './auth/google-oauth.js';
 import { KillswitchPoller } from './killswitch/index.js';
 
 let statusBar: StatusBarManager;
@@ -8,17 +10,19 @@ let killswitch: KillswitchPoller;
 
 export function activate(context: vscode.ExtensionContext) {
   const tokenStore = new TokenStore(context.secrets);
+  const apiClient = new ApiClient(tokenStore);
+  const oauthFlow = new GoogleOAuthFlow(tokenStore, apiClient);
   statusBar = new StatusBarManager();
   killswitch = new KillswitchPoller();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('ad-me.login', () => {
-      // TODO: Initiate Google OAuth flow
-      vscode.window.showInformationMessage('ad-me: Sign in coming soon');
+    vscode.commands.registerCommand('ad-me.login', async () => {
+      await oauthFlow.signIn();
+      updateStatusBar(tokenStore);
     }),
     vscode.commands.registerCommand('ad-me.logout', async () => {
-      await tokenStore.clearTokens();
-      vscode.window.showInformationMessage('ad-me: Signed out');
+      await oauthFlow.signOut();
+      updateStatusBar(tokenStore);
     }),
     vscode.commands.registerCommand('ad-me.toggleAds', () => {
       const config = vscode.workspace.getConfiguration('ad-me');
@@ -31,6 +35,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   killswitch.start();
   statusBar.show();
+
+  updateStatusBar(tokenStore);
+}
+
+async function updateStatusBar(tokenStore: TokenStore): Promise<void> {
+  const isAuth = await tokenStore.isAuthenticated();
+  if (!isAuth) {
+    statusBar.showUnauthenticated();
+  }
 }
 
 export function deactivate() {
