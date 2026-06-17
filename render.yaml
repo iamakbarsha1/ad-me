@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: ad-me-api
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: apps/api
+    buildCommand: "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @ad-me/api typecheck"
+    startCommand: "pnpm --filter @ad-me/api start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: DODO_API_KEY
+        sync: false
+      - key: DODO_WEBHOOK_SECRET
+        sync: false
+
+  - type: web
+    name: ad-me-web
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: apps/web
+    buildCommand: "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @ad-me/web build"
+    startCommand: "pnpm --filter @ad-me/web start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false
