@@ -11,25 +11,24 @@ export class GoogleOAuthFlow {
   async signIn(): Promise<boolean> {
     try {
       const token = await vscode.window.showInputBox({
-        prompt: 'Paste your Google ID token (from ad-me web login)',
-        placeHolder: 'eyJhbGciOiJSUzI1NiIs...',
+        prompt: 'Paste your ad-me access token (Settings → Extension Token on ad-me web app)',
+        placeHolder: 'eyJhbGciOiJIUzI1NiIs...',
         password: true,
         ignoreFocusOut: true,
       });
 
       if (!token) return false;
 
-      const response = await this.apiClient.fetchUnauth<{
-        user: { id: string; name: string; email: string };
-        accessToken: string;
-        refreshToken: string;
-      }>('/auth/google', {
-        method: 'POST',
-        body: JSON.stringify({ token }),
+      const user = await this.apiClient.fetchUnauth<{
+        id: string;
+        name: string;
+        email: string;
+      }>('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      await this.tokenStore.setTokens(response.accessToken, response.refreshToken);
-      vscode.window.showInformationMessage(`ad-me: Signed in as ${response.user.name}`);
+      await this.tokenStore.setTokens(token, '');
+      vscode.window.showInformationMessage(`ad-me: Signed in as ${user.name}`);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
