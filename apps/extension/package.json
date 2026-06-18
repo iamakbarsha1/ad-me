@@ -7,6 +7,16 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iamakbarsha1/ad-me"
+  },
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
@@ -37,7 +47,7 @@
     "dev": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "package": "vsce package"
+    "package": "vsce package --no-dependencies"
   },
   "dependencies": {
     "@ad-me/shared": "workspace:*"
@@ -46,6 +56,7 @@
     "@types/node": "^20.17.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.25.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@vscode/vsce": "^3.0.0"
   }
 }

@@ -1,6 +1,6 @@
 import { TokenStore } from '../auth/token-store.js';
 
-const API_BASE = 'https://api.ad-me.dev'; // TODO: make configurable
+const API_BASE = 'https://ad-me-api.onrender.com';
 
 export class ApiClient {
   constructor(private tokenStore: TokenStore) {}
