@@ -2,7 +2,7 @@
   "name": "ad-me",
   "displayName": "ad-me",
   "description": "Earn money from AI thinking time with sponsored ads",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "ad-me",
   "engines": {
     "vscode": "^1.85.0"
