@@ -95,6 +95,15 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  statusBarAd.onAdClick((adId, ctaUrl) => {
+    const active = findActiveImpressionByAd(adId);
+    if (active) {
+      clickTracker.handleClick(adId, active.impressionId, ctaUrl);
+    } else {
+      vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
+    }
+  });
+
   function findActiveImpressionByAd(adId: string) {
     for (const [, imp] of activeImpressions) {
       if (imp.adId === adId) return imp;
@@ -130,6 +139,9 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('ad-me.verbClick', (adId: string, ctaUrl: string) => {
       spinnerVerb.handleClick(adId, ctaUrl);
+    }),
+    vscode.commands.registerCommand('ad-me.statusBarClick', (adId: string, ctaUrl: string) => {
+      statusBarAd.handleClick(adId, ctaUrl);
     }),
   );
 

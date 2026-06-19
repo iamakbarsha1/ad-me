@@ -13,11 +13,16 @@ export class StatusBarAdSurface implements vscode.Disposable {
     this.item.text = `$(megaphone) ${ad.ad.title}`;
     this.item.tooltip = 'Sponsored - Click to learn more';
     this.item.command = {
-      command: 'vscode.open',
-      title: 'Open',
-      arguments: [vscode.Uri.parse(ad.ad.ctaUrl)],
+      command: 'ad-me.statusBarClick',
+      title: 'Open Ad',
+      arguments: [ad.ad.id, ad.ad.ctaUrl],
     };
     this.item.show();
+  }
+
+  handleClick(adId: string, ctaUrl: string): void {
+    vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
+    this.onClickCallback?.(adId, ctaUrl);
   }
 
   hide(): void {

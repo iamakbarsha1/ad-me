@@ -185,8 +185,9 @@ export default function CampaignDetailPage() {
       await apiAuthPost('/auction/bid', {
         adId: newAdId,
         campaignId,
-        bidAmountPaise: Math.round(parseFloat(bidAmount) * 100),
-        blocksCount: parseInt(bidBlocks, 10),
+        surface: adSurface,
+        bidAmount: Math.round(parseFloat(bidAmount) * 100),
+        blocks: parseInt(bidBlocks, 10),
       });
       setBidSuccess('Bid placed successfully!');
       setNewAdId(null);
