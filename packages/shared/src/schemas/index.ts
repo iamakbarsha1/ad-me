@@ -45,7 +45,6 @@ export const updateCampaignSchema = z.object({
 });
 
 export const createAdSchema = z.object({
-  campaignId: z.string().uuid(),
   title: z.string().min(1).max(100),
   body: z.string().min(1).max(500),
   ctaText: z.string().min(1).max(50),
