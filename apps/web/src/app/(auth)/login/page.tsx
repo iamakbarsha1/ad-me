@@ -20,8 +20,12 @@ export default function LoginPage() {
             onSuccess={async (response) => {
               if (response.credential) {
                 try {
-                  await login(response.credential);
-                  router.push('/earnings');
+                  const user = await login(response.credential);
+                  if (user.role === 'advertiser' || user.role === 'admin') {
+                    router.push('/campaigns');
+                  } else {
+                    router.push('/earnings');
+                  }
                 } catch (err) {
                   console.error('Login failed:', err);
                 }

@@ -11,10 +11,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
+    } else if (!isLoading && isAuthenticated && (user?.role === 'advertiser' || user?.role === 'admin')) {
+      router.push('/campaigns');
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, user, router]);
 
-  if (isLoading || !isAuthenticated) {
+  if (isLoading || !isAuthenticated || user?.role === 'advertiser' || user?.role === 'admin') {
     return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
   }
 

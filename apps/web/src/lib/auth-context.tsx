@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (googleToken: string) => Promise<void>;
+  login: (googleToken: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback(async (googleToken: string) => {
+  const login = useCallback(async (googleToken: string): Promise<User> => {
     const response = await apiPost<{
       user: User;
       accessToken: string;
@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
     }));
+    return response.user;
   }, []);
 
   const logout = useCallback(() => {
