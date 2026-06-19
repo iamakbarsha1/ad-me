@@ -77,9 +77,9 @@ export default function CampaignsPage() {
     try {
       await apiAuthPost('/campaigns', {
         name: createName,
-        budgetPaise: Math.round(parseFloat(createBudget) * 100),
-        startDate: createStartDate || null,
-        endDate: createEndDate || null,
+        budget: Math.round(parseFloat(createBudget) * 100),
+        ...(createStartDate ? { startDate: new Date(createStartDate).toISOString() } : {}),
+        ...(createEndDate ? { endDate: new Date(createEndDate).toISOString() } : {}),
       });
       setShowCreate(false);
       setCreateName('');
@@ -124,7 +124,7 @@ export default function CampaignsPage() {
     try {
       await apiAuthPatch(`/campaigns/${id}`, {
         name: editName,
-        budgetPaise: Math.round(parseFloat(editBudget) * 100),
+        budget: Math.round(parseFloat(editBudget) * 100),
       });
       setEditingId(null);
       await loadCampaigns();
