@@ -298,6 +298,8 @@ router.post('/:campaignId/ads', validate(createAdSchema), async (req, res) => {
       surface: 'spinner_overlay' | 'thinking_shimmer' | 'status_bar' | 'spinner_verb';
     };
 
+    const adStatus = campaign.status === 'active' ? 'active' : 'pending';
+
     const [ad] = await db
       .insert(ads)
       .values({
@@ -308,6 +310,7 @@ router.post('/:campaignId/ads', validate(createAdSchema), async (req, res) => {
         ctaUrl,
         imageUrl: imageUrl ?? null,
         surface,
+        status: adStatus,
       })
       .returning();
 

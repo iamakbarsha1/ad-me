@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { eq, sql, desc } from 'drizzle-orm';
 import { authMiddleware, requireRole, type AuthenticatedRequest } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { adminUpdateCampaignSchema } from '@ad-me/shared';
+import { adminUpdateCampaignSchema, adminUpdateUserRoleSchema } from '@ad-me/shared';
 import { db } from '../db/index.js';
 import { users, advertisers, campaigns, ads, impressions, clicks, earnings } from '../db/schema.js';
 
@@ -106,6 +106,30 @@ router.patch('/campaigns/:id', validate(adminUpdateCampaignSchema), async (req, 
     res.json(updated);
   } catch (err) {
     console.error('PATCH /admin/campaigns/:id error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /admin/users/:id/role — promote/demote user role
+router.patch('/users/:id/role', validate(adminUpdateUserRoleSchema), async (req, res) => {
+  try {
+    const userId = String(req.params.id);
+    const { role } = req.body as { role: 'developer' | 'advertiser' | 'admin' };
+
+    const [updated] = await db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, role: users.role });
+
+    if (!updated) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error('PATCH /admin/users/:id/role error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

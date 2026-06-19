@@ -27,7 +27,7 @@ When AI tools like Claude Code, GitHub Copilot, or Codex CLI are processing your
 1. Install the extension from VS Code Marketplace
 2. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
 3. Run **`ad-me: Sign In`**
-4. Get your Google ID token from [ad-me web app](https://ad-me-web.onrender.com/login) and paste it when prompted
+4. Get your access token from [ad-me web app → Settings](https://ad-me-web.onrender.com/settings) and paste it when prompted
 5. Ads start showing automatically — you earn from the first impression
 
 ## Commands

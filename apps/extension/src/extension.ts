@@ -15,6 +15,8 @@ import { SpinnerOverlaySurface } from './activation/surfaces/spinner-overlay.js'
 import { ThinkingShimmerSurface } from './activation/surfaces/thinking-shimmer.js';
 import { StatusBarAdSurface } from './activation/surfaces/status-bar-ad.js';
 import { SpinnerVerbSurface } from './activation/surfaces/spinner-verb.js';
+import { ClaudeCodeAdapter } from './adapters/claude-code.js';
+import type { AIToolAdapter } from './adapters/types.js';
 
 let statusBar: StatusBarManager;
 let killswitch: KillswitchPoller;
@@ -23,7 +25,7 @@ let impressionTracker: ImpressionTracker;
 
 // Surface mapping: adapter name -> preferred surface type
 const ADAPTER_SURFACE_MAP: Record<string, AdSurface> = {
-  'claude-code': 'spinner_overlay',
+  'claude-code': 'status_bar',
   'copilot': 'thinking_shimmer',
   'codex-cli': 'spinner_verb',
 };
@@ -161,64 +163,83 @@ export function activate(context: vscode.ExtensionContext) {
     // Silently fail prefetch
   });
 
-  // Initialize lifecycle and wire adapters
-  lifecycle.initialize().then(() => {
-    const adapters = lifecycle.getActiveAdapters();
+  // Track wired adapters to prevent double-wiring
+  const wiredAdapterNames = new Set<string>();
 
-    for (const adapter of adapters) {
-      const surfaceType = ADAPTER_SURFACE_MAP[adapter.name] ?? 'status_bar';
-      const surface = surfaces[surfaceType];
+  function wireAdapter(adapter: AIToolAdapter): void {
+    if (wiredAdapterNames.has(adapter.name)) return;
+    wiredAdapterNames.add(adapter.name);
 
-      adapter.onThinkingStart(() => {
-        if (killswitch.isKilled) return;
+    const surfaceType = ADAPTER_SURFACE_MAP[adapter.name] ?? 'status_bar';
+    const surface = surfaces[surfaceType];
 
-        const config = vscode.workspace.getConfiguration('ad-me');
-        if (!config.get<boolean>('enabled', true)) return;
+    adapter.onThinkingStart(() => {
+      if (killswitch.isKilled) return;
 
-        const ad = adService.getCached(surfaceType);
-        if (!ad) return;
+      const config = vscode.workspace.getConfiguration('ad-me');
+      if (!config.get<boolean>('enabled', true)) return;
 
-        const idempotencyKey = crypto.randomUUID();
+      const ad = adService.getCached(surfaceType);
+      if (!ad) return;
 
-        // Store active impression
-        activeImpressions.set(adapter.name, {
+      const idempotencyKey = crypto.randomUUID();
+
+      // Store active impression
+      activeImpressions.set(adapter.name, {
+        adId: ad.ad.id,
+        blockId: ad.blockId,
+        impressionId: ad.impressionId,
+        idempotencyKey,
+        surface: surfaceType,
+      });
+
+      // Show the ad surface
+      surface.show(ad);
+
+      // Start impression tracking
+      impressionTracker.startTracking(ad.impressionId, (durationMs) => {
+        telemetry.reportImpression({
           adId: ad.ad.id,
           blockId: ad.blockId,
-          impressionId: ad.impressionId,
           idempotencyKey,
           surface: surfaceType,
-        });
-
-        // Show the ad surface
-        surface.show(ad);
-
-        // Start impression tracking
-        impressionTracker.startTracking(ad.impressionId, (durationMs) => {
-          telemetry.reportImpression({
-            adId: ad.ad.id,
-            blockId: ad.blockId,
-            idempotencyKey,
-            surface: surfaceType,
-            durationMs,
-          }).catch(() => {
-            // Silently fail impression reporting
-          });
-        });
-
-        // Pre-fetch next ad for this surface
-        adService.fetchNext(surfaceType).catch(() => {});
+          durationMs,
+        }).catch(() => {});
       });
 
-      adapter.onThinkingEnd(() => {
-        const active = activeImpressions.get(adapter.name);
-        if (active) {
-          impressionTracker.cancelTracking(active.impressionId);
-          activeImpressions.delete(adapter.name);
-        }
+      // Pre-fetch next ad for this surface
+      adService.fetchNext(surfaceType).catch(() => {});
+    });
 
-        hideAllSurfaces();
-      });
+    adapter.onThinkingEnd(() => {
+      const active = activeImpressions.get(adapter.name);
+      if (active) {
+        impressionTracker.cancelTracking(active.impressionId);
+        activeImpressions.delete(adapter.name);
+      }
+
+      hideAllSurfaces();
+    });
+  }
+
+  // Initialize lifecycle and wire adapters
+  lifecycle.initialize().then(() => {
+    for (const adapter of lifecycle.getActiveAdapters()) {
+      wireAdapter(adapter);
     }
+
+    // Late terminal detection: wire claude-code adapter if terminal opens after activation
+    context.subscriptions.push(
+      vscode.window.onDidOpenTerminal(async (terminal) => {
+        if (!terminal.name.toLowerCase().includes('claude')) return;
+        if (wiredAdapterNames.has('claude-code')) return;
+        const adapter = new ClaudeCodeAdapter();
+        if (await adapter.detect()) {
+          wireAdapter(adapter);
+          context.subscriptions.push(adapter);
+        }
+      })
+    );
   }).catch(() => {
     // Silently fail adapter initialization
   });

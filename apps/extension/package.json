@@ -2,10 +2,10 @@
   "name": "ad-me",
   "displayName": "ad-me",
   "description": "Earn money from AI thinking time with sponsored ads",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "ad-me",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.87.0"
   },
   "license": "MIT",
   "repository": {
@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.87.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.0",
     "@vscode/vsce": "^3.0.0"

@@ -87,6 +87,10 @@ export const adminUpdateCampaignSchema = z.object({
   status: z.enum(['active', 'paused', 'completed']),
 });
 
+export const adminUpdateUserRoleSchema = z.object({
+  role: z.enum(['developer', 'advertiser', 'admin']),
+});
+
 export const leaderboardQuerySchema = z.object({
   period: z.enum(['daily', 'weekly', 'monthly', 'alltime']).default('weekly'),
   limit: z.coerce.number().int().positive().max(100).default(50),
