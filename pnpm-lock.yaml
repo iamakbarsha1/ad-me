@@ -80,7 +80,7 @@ importers:
         specifier: ^20.17.0
         version: 20.19.43
       '@types/vscode':
-        specifier: ^1.85.0
+        specifier: ^1.87.0
         version: 1.120.0
       '@vscode/vsce':
         specifier: ^3.0.0
