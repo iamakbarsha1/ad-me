@@ -8,7 +8,7 @@ import type { AdSurface } from '@ad-me/shared';
 const router = Router();
 
 router.get('/next', authMiddleware, validate(adNextQuerySchema, 'query'), async (req, res) => {
-  const { surface } = req.query as { surface: string };
+  const { surface } = (req as any).validatedQuery as { surface: string };
   const result = await getNextAd(surface as AdSurface);
 
   if (!result) {

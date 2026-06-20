@@ -11,7 +11,12 @@ export function validate(schema: ZodSchema, source: 'body' | 'query' | 'params' 
       });
       return;
     }
-    req[source] = result.data;
+    // Express 5: req.query is read-only getter. Store parsed data on req instead of replacing.
+    if (source === 'query') {
+      (req as any).validatedQuery = result.data;
+    } else {
+      req[source] = result.data;
+    }
     next();
   };
 }

@@ -19,6 +19,7 @@ export class GoogleOAuthFlow {
 
       if (!token) return false;
 
+      // Validate token and get user info
       const user = await this.apiClient.fetchUnauth<{
         id: string;
         name: string;
@@ -27,7 +28,16 @@ export class GoogleOAuthFlow {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      await this.tokenStore.setTokens(token, '');
+      // Exchange for fresh access + refresh token pair
+      const tokens = await this.apiClient.fetchUnauth<{
+        accessToken: string;
+        refreshToken: string;
+      }>('/auth/extension-token', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      await this.tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
       vscode.window.showInformationMessage(`ad-me: Signed in as ${user.name}`);
       return true;
     } catch (err) {

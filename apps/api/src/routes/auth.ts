@@ -54,6 +54,21 @@ router.post('/refresh', validate(refreshTokenSchema), async (req, res) => {
   }
 });
 
+// Exchange a valid access token for a fresh access+refresh pair (for VS Code extension)
+router.post('/extension-token', authMiddleware, async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = await getUserById(req.userId!);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const tokens = signTokenPair(user.id, user.role);
+    res.json(tokens);
+  } catch {
+    res.status(500).json({ error: 'Failed to generate tokens' });
+  }
+});
+
 router.get('/me', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const user = await getUserById(req.userId!);

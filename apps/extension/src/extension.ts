@@ -23,6 +23,9 @@ let killswitch: KillswitchPoller;
 let lifecycle: LifecycleManager;
 let impressionTracker: ImpressionTracker;
 
+// Debug output channel
+const log = vscode.window.createOutputChannel('ad-me', { log: true });
+
 // Surface mapping: adapter name -> preferred surface type
 const ADAPTER_SURFACE_MAP: Record<string, AdSurface> = {
   'claude-code': 'status_bar',
@@ -31,6 +34,7 @@ const ADAPTER_SURFACE_MAP: Record<string, AdSurface> = {
 };
 
 export function activate(context: vscode.ExtensionContext) {
+  log.info('ad-me extension activating...');
   const tokenStore = new TokenStore(context.secrets);
   const apiClient = new ApiClient(tokenStore);
   const oauthFlow = new GoogleOAuthFlow(tokenStore, apiClient);
@@ -122,11 +126,14 @@ export function activate(context: vscode.ExtensionContext) {
   // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand('ad-me.login', async () => {
-      await oauthFlow.signIn();
+      log.info('Sign-in initiated');
+      const ok = await oauthFlow.signIn();
+      log.info(`Sign-in result: ${ok}`);
       updateStatusBar(tokenStore);
     }),
     vscode.commands.registerCommand('ad-me.logout', async () => {
       await oauthFlow.signOut();
+      log.info('Signed out');
       updateStatusBar(tokenStore);
     }),
     vscode.commands.registerCommand('ad-me.toggleAds', () => {
@@ -143,6 +150,27 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('ad-me.statusBarClick', (adId: string, ctaUrl: string) => {
       statusBarAd.handleClick(adId, ctaUrl);
+    }),
+    vscode.commands.registerCommand('ad-me.testFetch', async () => {
+      log.show();
+      const isAuth = await tokenStore.isAuthenticated();
+      log.info(`Auth: ${isAuth}`);
+      const token = await tokenStore.getAccessToken();
+      log.info(`Token present: ${!!token}, length: ${token?.length ?? 0}`);
+      try {
+        const ad = await adService.fetchNext('status_bar');
+        if (ad) {
+          log.info(`Ad fetched: "${ad.ad.title}" (${ad.ad.id})`);
+          vscode.window.showInformationMessage(`ad-me: Got ad "${ad.ad.title}"`);
+        } else {
+          log.warn('No ad returned (null)');
+          vscode.window.showWarningMessage('ad-me: No ad returned from API');
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.error(`Fetch failed: ${msg}`);
+        vscode.window.showErrorMessage(`ad-me: ${msg}`);
+      }
     }),
   );
 
@@ -172,8 +200,11 @@ export function activate(context: vscode.ExtensionContext) {
   updateStatusBar(tokenStore);
 
   // Prefetch ads for all surfaces
-  adService.prefetch([...AD_SURFACES]).catch(() => {
-    // Silently fail prefetch
+  tokenStore.isAuthenticated().then(auth => log.info(`Auth status at activation: ${auth}`));
+  adService.prefetch([...AD_SURFACES]).then(() => {
+    log.info('Prefetch complete');
+  }).catch((err) => {
+    log.warn(`Prefetch failed: ${err instanceof Error ? err.message : err}`);
   });
 
   // Track wired adapters to prevent double-wiring
@@ -186,14 +217,24 @@ export function activate(context: vscode.ExtensionContext) {
     const surfaceType = ADAPTER_SURFACE_MAP[adapter.name] ?? 'status_bar';
     const surface = surfaces[surfaceType];
 
-    adapter.onThinkingStart(() => {
-      if (killswitch.isKilled) return;
+    adapter.onThinkingStart(async () => {
+      log.info(`[${adapter.name}] thinkingStart fired, surface=${surfaceType}`);
+      if (killswitch.isKilled) { log.warn('Killswitch active, skipping'); return; }
 
       const config = vscode.workspace.getConfiguration('ad-me');
-      if (!config.get<boolean>('enabled', true)) return;
+      if (!config.get<boolean>('enabled', true)) { log.warn('Ads disabled in config'); return; }
 
-      const ad = adService.getCached(surfaceType);
-      if (!ad) return;
+      let ad = adService.getCached(surfaceType);
+      log.info(`Cached ad: ${ad ? ad.ad.title : 'null'}`);
+      if (!ad) {
+        try {
+          ad = await adService.fetchNext(surfaceType);
+          log.info(`Fetched ad: ${ad ? ad.ad.title : 'null'}`);
+        } catch (err) {
+          log.error(`Ad fetch error: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      if (!ad) { log.warn('No ad available, skipping display'); return; }
 
       const idempotencyKey = crypto.randomUUID();
 
@@ -245,24 +286,28 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize lifecycle and wire adapters
   lifecycle.initialize().then(() => {
-    for (const adapter of lifecycle.getActiveAdapters()) {
+    const active = lifecycle.getActiveAdapters();
+    log.info(`Lifecycle init: ${active.length} adapter(s) detected: ${active.map(a => a.name).join(', ') || 'none'}`);
+    for (const adapter of active) {
       wireAdapter(adapter);
     }
 
     // Late terminal detection: wire claude-code adapter if terminal opens after activation
     context.subscriptions.push(
       vscode.window.onDidOpenTerminal(async (terminal) => {
+        log.info(`Terminal opened: "${terminal.name}"`);
         if (!terminal.name.toLowerCase().includes('claude')) return;
-        if (wiredAdapterNames.has('claude-code')) return;
+        if (wiredAdapterNames.has('claude-code')) { log.info('claude-code adapter already wired'); return; }
         const adapter = new ClaudeCodeAdapter();
         if (await adapter.detect()) {
+          log.info('Late-detected Claude terminal, wiring adapter');
           wireAdapter(adapter);
           context.subscriptions.push(adapter);
         }
       })
     );
-  }).catch(() => {
-    // Silently fail adapter initialization
+  }).catch((err) => {
+    log.error(`Lifecycle init failed: ${err instanceof Error ? err.message : err}`);
   });
 }
 

@@ -1,12 +1,15 @@
+import * as vscode from 'vscode';
 import { TokenStore } from '../auth/token-store.js';
 
 const API_BASE = 'https://ad-me-api.onrender.com';
+const log = vscode.window.createOutputChannel('ad-me', { log: true });
 
 export class ApiClient {
   constructor(private tokenStore: TokenStore) {}
 
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = await this.tokenStore.getAccessToken();
+    log.info(`[API] ${options.method ?? 'GET'} ${path} | token=${!!token}`);
 
     const res = await globalThis.fetch(`${API_BASE}${path}`, {
       ...options,
@@ -17,7 +20,10 @@ export class ApiClient {
       },
     });
 
+    log.info(`[API] ${path} → ${res.status}`);
+
     if (res.status === 401) {
+      log.warn(`[API] 401 on ${path}, attempting refresh`);
       const refreshed = await this.tryRefresh();
       if (refreshed) {
         return this.fetch(path, options);
@@ -25,8 +31,14 @@ export class ApiClient {
       throw new Error('Unauthorized');
     }
 
+    if (res.status === 204) {
+      log.info(`[API] 204 No Content on ${path}`);
+      return null as T;
+    }
+
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
+      log.error(`[API] Error ${res.status} on ${path}: ${body.error}`);
       throw new Error(body.error || `API error: ${res.status}`);
     }
 
