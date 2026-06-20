@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import { cpSync, mkdirSync } from 'node:fs';
 
 const watch = process.argv.includes('--watch');
 
@@ -20,3 +21,7 @@ if (watch) {
   await ctx.rebuild();
   await ctx.dispose();
 }
+
+// Copy block.asset.js to dist (not bundled — read at runtime by patcher)
+mkdirSync('dist/adapters', { recursive: true });
+cpSync('src/adapters/block.asset.js', 'dist/adapters/block.asset.js');
