@@ -48,7 +48,7 @@ export const createAdSchema = z.object({
   title: z.string().min(1).max(100),
   body: z.string().min(1).max(500),
   ctaText: z.string().min(1).max(50),
-  ctaUrl: z.string().url(),
+  ctaUrl: z.string().url().max(2048),
   imageUrl: z.string().url().optional(),
   surface: adSurfaceSchema,
 });

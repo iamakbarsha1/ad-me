@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiAuthGet, apiAuthPost, apiAuthPatch } from '../../../lib/api';
+import { apiAuthGet, apiAuthPost, apiAuthPatch, apiAuthDelete } from '../../../lib/api';
 
 interface Campaign {
   id: string;
   name: string;
   status: string;
-  budgetPaise: number;
-  spentPaise: number;
+  budget: number;
+  spent: number;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
@@ -107,7 +107,7 @@ export default function CampaignsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this campaign?')) return;
     try {
-      await apiAuthPatch(`/campaigns/${id}`, { status: 'completed' });
+      await apiAuthDelete(`/campaigns/${id}`);
       await loadCampaigns();
     } catch (e) {
       setError((e as Error).message);
@@ -117,7 +117,7 @@ export default function CampaignsPage() {
   function startEdit(campaign: Campaign) {
     setEditingId(campaign.id);
     setEditName(campaign.name);
-    setEditBudget((campaign.budgetPaise / 100).toFixed(2));
+    setEditBudget((campaign.budget / 100).toFixed(2));
   }
 
   async function handleEditSave(id: string) {
@@ -268,10 +268,10 @@ export default function CampaignsPage() {
                         className="rounded border border-gray-300 px-2 py-1 text-sm w-28 focus:outline-none focus:border-blue-500"
                       />
                     ) : (
-                      formatINR(c.budgetPaise)
+                      formatINR(c.budget)
                     )}
                   </td>
-                  <td className="px-4 py-3">{formatINR(c.spentPaise)}</td>
+                  <td className="px-4 py-3">{formatINR(c.spent)}</td>
                   <td className="px-4 py-3 text-gray-500">{new Date(c.createdAt).toLocaleDateString('en-IN')}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

@@ -120,11 +120,27 @@ router.patch('/users/:id/role', validate(adminUpdateUserRoleSchema), async (req,
       .update(users)
       .set({ role, updatedAt: new Date() })
       .where(eq(users.id, userId))
-      .returning({ id: users.id, role: users.role });
+      .returning({ id: users.id, name: users.name, role: users.role });
 
     if (!updated) {
       res.status(404).json({ error: 'User not found' });
       return;
+    }
+
+    // Auto-create advertiser profile when promoting to advertiser
+    if (role === 'advertiser') {
+      const [existing] = await db
+        .select({ id: advertisers.id })
+        .from(advertisers)
+        .where(eq(advertisers.userId, userId))
+        .limit(1);
+
+      if (!existing) {
+        await db.insert(advertisers).values({
+          userId,
+          companyName: updated.name,
+        });
+      }
     }
 
     res.json(updated);

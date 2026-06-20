@@ -137,7 +137,6 @@ export interface AdServeResponse {
     imageUrl: string | null;
     surface: AdSurface;
   };
-  impressionId: string;
   blockId: string;
 }
 

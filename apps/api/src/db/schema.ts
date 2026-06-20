@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
 export const userRoleEnum = pgEnum('user_role', ['developer', 'advertiser', 'admin']);
 export const campaignStatusEnum = pgEnum('campaign_status', ['draft', 'active', 'paused', 'completed']);
@@ -44,7 +44,9 @@ export const campaigns = pgTable('campaigns', {
   endDate: timestamp('end_date', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('campaigns_advertiser_id_idx').on(table.advertiserId),
+]);
 
 export const ads = pgTable('ads', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -58,7 +60,9 @@ export const ads = pgTable('ads', {
   surface: adSurfaceEnum('surface').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('ads_campaign_id_idx').on(table.campaignId),
+]);
 
 export const adBlocks = pgTable('ad_blocks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -70,7 +74,9 @@ export const adBlocks = pgTable('ad_blocks', {
   impressionsServed: integer('impressions_served').notNull().default(0),
   status: adBlockStatusEnum('status').notNull().default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('ad_blocks_surface_status_idx').on(table.surface, table.status),
+]);
 
 export const impressions = pgTable('impressions', (t) => ({
   id: t.uuid('id').primaryKey().defaultRandom(),
@@ -85,6 +91,7 @@ export const impressions = pgTable('impressions', (t) => ({
   createdAt: t.timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }), (table) => [
   uniqueIndex('impressions_idempotency_key_idx').on(table.idempotencyKey),
+  index('impressions_ad_block_id_idx').on(table.adBlockId),
 ]);
 
 export const clicks = pgTable('clicks', (t) => ({
@@ -107,7 +114,9 @@ export const earnings = pgTable('earnings', {
   amount: integer('amount').notNull(),
   type: earningTypeEnum('type').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('earnings_user_id_idx').on(table.userId),
+]);
 
 export const payouts = pgTable('payouts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -119,7 +128,9 @@ export const payouts = pgTable('payouts', {
   dodoPayoutId: text('dodo_payout_id'),
   requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-});
+}, (table) => [
+  index('payouts_user_id_idx').on(table.userId),
+]);
 
 export const killswitch = pgTable('killswitch', {
   id: uuid('id').primaryKey().defaultRandom(),

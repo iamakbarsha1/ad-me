@@ -58,10 +58,11 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   // Track active impressions per adapter
-  const activeImpressions = new Map<string, { adId: string; blockId: string; impressionId: string; idempotencyKey: string; surface: AdSurface }>();
+  const activeImpressions = new Map<string, { adId: string; blockId: string; trackingKey: string; impressionId?: string; idempotencyKey: string; surface: AdSurface }>();
 
   // Wire click handlers
-  clickTracker.onAdClick((adId, impressionId) => {
+  clickTracker.onAdClick((adId, impressionId: string) => {
+    if (!impressionId) return; // No server-confirmed impressionId yet
     const idempotencyKey = crypto.randomUUID();
     telemetry.reportClick({ impressionId, adId, idempotencyKey }).catch(() => {
       // Silently fail click reporting
@@ -71,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
   spinnerOverlay.onAdClick((adId, ctaUrl) => {
     const active = findActiveImpressionByAd(adId);
     if (active) {
-      clickTracker.handleClick(adId, active.impressionId, ctaUrl);
+      clickTracker.handleClick(adId, active.impressionId ?? '', ctaUrl);
     } else {
       vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
     }
@@ -80,7 +81,7 @@ export function activate(context: vscode.ExtensionContext) {
   thinkingShimmer.onAdClick((adId, ctaUrl) => {
     const active = findActiveImpressionByAd(adId);
     if (active) {
-      clickTracker.handleClick(adId, active.impressionId, ctaUrl);
+      clickTracker.handleClick(adId, active.impressionId ?? '', ctaUrl);
     } else {
       vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
     }
@@ -89,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
   spinnerVerb.onAdClick((adId, ctaUrl) => {
     const active = findActiveImpressionByAd(adId);
     if (active) {
-      clickTracker.handleClick(adId, active.impressionId, ctaUrl);
+      clickTracker.handleClick(adId, active.impressionId ?? '', ctaUrl);
     } else {
       vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
     }
@@ -98,7 +99,7 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarAd.onAdClick((adId, ctaUrl) => {
     const active = findActiveImpressionByAd(adId);
     if (active) {
-      clickTracker.handleClick(adId, active.impressionId, ctaUrl);
+      clickTracker.handleClick(adId, active.impressionId ?? '', ctaUrl);
     } else {
       vscode.env.openExternal(vscode.Uri.parse(ctaUrl));
     }
@@ -196,11 +197,13 @@ export function activate(context: vscode.ExtensionContext) {
 
       const idempotencyKey = crypto.randomUUID();
 
+      const trackingKey = crypto.randomUUID();
+
       // Store active impression
       activeImpressions.set(adapter.name, {
         adId: ad.ad.id,
         blockId: ad.blockId,
-        impressionId: ad.impressionId,
+        trackingKey,
         idempotencyKey,
         surface: surfaceType,
       });
@@ -209,13 +212,19 @@ export function activate(context: vscode.ExtensionContext) {
       surface.show(ad);
 
       // Start impression tracking
-      impressionTracker.startTracking(ad.impressionId, (durationMs) => {
+      impressionTracker.startTracking(trackingKey, (durationMs) => {
         telemetry.reportImpression({
           adId: ad.ad.id,
           blockId: ad.blockId,
           idempotencyKey,
           surface: surfaceType,
           durationMs,
+        }).then((result) => {
+          // Store real impressionId from server for click tracking
+          const active = activeImpressions.get(adapter.name);
+          if (active && active.trackingKey === trackingKey) {
+            active.impressionId = result.id;
+          }
         }).catch(() => {});
       });
 
@@ -226,7 +235,7 @@ export function activate(context: vscode.ExtensionContext) {
     adapter.onThinkingEnd(() => {
       const active = activeImpressions.get(adapter.name);
       if (active) {
-        impressionTracker.cancelTracking(active.impressionId);
+        impressionTracker.cancelTracking(active.trackingKey);
         activeImpressions.delete(adapter.name);
       }
 

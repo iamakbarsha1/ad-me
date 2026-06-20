@@ -18,7 +18,7 @@ import adminRoutes from './routes/admin.js';
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000'] }));
 
 // Webhooks need raw body for HMAC signature verification — mount before express.json()
 app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);

@@ -8,8 +8,8 @@ interface Campaign {
   id: string;
   name: string;
   status: string;
-  budgetPaise: number;
-  spentPaise: number;
+  budget: number;
+  spent: number;
   startDate: string | null;
   endDate: string | null;
 }
@@ -226,8 +226,8 @@ export default function CampaignDetailPage() {
           </div>
           <div className="text-right text-sm">
             <div className="text-gray-500">Budget</div>
-            <div className="font-semibold text-gray-900">{formatINR(campaign.budgetPaise)}</div>
-            <div className="text-gray-400 mt-1">Spent: {formatINR(campaign.spentPaise)}</div>
+            <div className="font-semibold text-gray-900">{formatINR(campaign.budget)}</div>
+            <div className="text-gray-400 mt-1">Spent: {formatINR(campaign.spent)}</div>
           </div>
         </div>
         {(campaign.startDate || campaign.endDate) && (

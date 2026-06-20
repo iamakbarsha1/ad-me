@@ -32,25 +32,23 @@ router.post('/bid', validate(auctionBidSchema), async (req, res) => {
 
     const totalCost = bidAmount * blocks;
 
-    const [advertiser] = await db
-      .select({ id: advertisers.id, balance: advertisers.balance })
-      .from(advertisers)
-      .where(eq(advertisers.userId, authReq.userId!))
-      .limit(1);
-
-    if (!advertiser) {
-      res.status(404).json({ error: 'Advertiser profile not found' });
-      return;
-    }
-
-    if (advertiser.balance < totalCost) {
-      res.status(400).json({
-        error: `Insufficient balance. Required: ${totalCost} paise, Available: ${advertiser.balance} paise`,
-      });
-      return;
-    }
-
     const createdBlocks = await db.transaction(async (tx) => {
+      // SEC-01: Balance check inside transaction with row-level lock
+      const [advertiser] = await tx
+        .select({ id: advertisers.id, balance: advertisers.balance })
+        .from(advertisers)
+        .where(eq(advertisers.userId, authReq.userId!))
+        .for('update')
+        .limit(1);
+
+      if (!advertiser) {
+        throw new Error('ADVERTISER_NOT_FOUND');
+      }
+
+      if (advertiser.balance < totalCost) {
+        throw new Error(`INSUFFICIENT_BALANCE:${totalCost}:${advertiser.balance}`);
+      }
+
       // Deduct balance
       await tx
         .update(advertisers)
@@ -74,6 +72,19 @@ router.post('/bid', validate(auctionBidSchema), async (req, res) => {
       blocksCreated: createdBlocks.length,
     });
   } catch (err) {
+    if (err instanceof Error) {
+      if (err.message === 'ADVERTISER_NOT_FOUND') {
+        res.status(404).json({ error: 'Advertiser profile not found' });
+        return;
+      }
+      if (err.message.startsWith('INSUFFICIENT_BALANCE:')) {
+        const [, required, available] = err.message.split(':');
+        res.status(400).json({
+          error: `Insufficient balance. Required: ${required} paise, Available: ${available} paise`,
+        });
+        return;
+      }
+    }
     console.error('POST /auction/bid error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

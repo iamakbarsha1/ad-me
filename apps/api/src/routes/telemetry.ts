@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { eq, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { validate } from '../middleware/validate.js';
 import { impressionSchema, clickSchema, QUALIFIED_IMPRESSION_MS, IMPRESSIONS_PER_BLOCK, REVENUE_SPLIT, CLICK_MULTIPLIER } from '@ad-me/shared';
 import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.js';
 import { impressionLimiter, clickLimiter } from '../middleware/rate-limit.js';
 import { db } from '../db/index.js';
-import { impressions, clicks, earnings, adBlocks } from '../db/schema.js';
+import { impressions, clicks, earnings, adBlocks, ads, campaigns, users } from '../db/schema.js';
 
 const router = Router();
 
@@ -69,8 +69,34 @@ router.post('/impression', authMiddleware, impressionLimiter, validate(impressio
           amount: earningAmount,
           type: 'impression',
         });
+
+        // BUG-06: Track lifetimeEarned on user
+        await db
+          .update(users)
+          .set({ lifetimeEarned: sql`${users.lifetimeEarned} + ${earningAmount}` })
+          .where(eq(users.id, authReq.userId!));
+
+        // BUG-05: Track campaign.spent via adBlock → ad → campaign chain
+        const [adRow] = await db
+          .select({ campaignId: ads.campaignId })
+          .from(ads)
+          .where(eq(ads.id, adId))
+          .limit(1);
+
+        if (adRow) {
+          await db
+            .update(campaigns)
+            .set({ spent: sql`${campaigns.spent} + ${earningAmount}` })
+            .where(eq(campaigns.id, adRow.campaignId));
+        }
       }
     }
+
+    // BUG-07: Mark adBlock exhausted when impressions are used up
+    await db
+      .update(adBlocks)
+      .set({ status: 'exhausted' })
+      .where(and(eq(adBlocks.id, blockId), sql`${adBlocks.impressionsServed} >= ${adBlocks.impressionsTotal}`));
   }
 
   res.json({ id: impression.id, qualified });
@@ -129,6 +155,12 @@ router.post('/click', authMiddleware, clickLimiter, validate(clickSchema), async
           amount: earningAmount,
           type: 'click',
         });
+
+        // BUG-06: Track lifetimeEarned on user
+        await db
+          .update(users)
+          .set({ lifetimeEarned: sql`${users.lifetimeEarned} + ${earningAmount}` })
+          .where(eq(users.id, authReq.userId!));
       }
     }
   }

@@ -2,7 +2,6 @@ import { eq, and, lt, desc, asc, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { adBlocks, ads, campaigns } from '../db/schema.js';
 import type { AdServeResponse, AdSurface } from '@ad-me/shared';
-import { randomUUID } from 'node:crypto';
 
 export async function getNextAd(surface: AdSurface): Promise<AdServeResponse | null> {
   // Auction: find the highest-bidding active adBlock for this surface
@@ -53,7 +52,6 @@ export async function getNextAd(surface: AdSurface): Promise<AdServeResponse | n
       imageUrl: winner.adImageUrl,
       surface: winner.adSurface,
     },
-    impressionId: randomUUID(),
     blockId: winner.blockId,
   };
 }

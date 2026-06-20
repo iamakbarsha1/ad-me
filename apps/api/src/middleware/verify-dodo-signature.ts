@@ -5,6 +5,10 @@ export function verifyDodoSignature(req: Request, res: Response, next: NextFunct
   const secret = process.env.DODO_WEBHOOK_SECRET;
 
   if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(500).json({ error: 'Webhook secret not configured' });
+      return;
+    }
     console.warn('[dodo-webhook] DODO_WEBHOOK_SECRET not set — skipping signature verification (dev mode)');
     next();
     return;

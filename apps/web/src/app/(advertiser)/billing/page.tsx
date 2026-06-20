@@ -46,7 +46,7 @@ export default function BillingPage() {
     setDepositSuccess('');
     try {
       await apiAuthPost('/billing/deposit', {
-        amountPaise: Math.round(parseFloat(amount) * 100),
+        amount: Math.round(parseFloat(amount) * 100),
       });
       setDepositSuccess('Deposit initiated successfully!');
       setAmount('');

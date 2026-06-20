@@ -10,8 +10,8 @@ export class TelemetryClient {
     idempotencyKey: string;
     surface: AdSurface;
     durationMs: number;
-  }): Promise<void> {
-    await this.client.fetch('/telemetry/impression', {
+  }): Promise<{ id: string; qualified: boolean }> {
+    return this.client.fetch<{ id: string; qualified: boolean }>('/telemetry/impression', {
       method: 'POST',
       body: JSON.stringify(data),
     });

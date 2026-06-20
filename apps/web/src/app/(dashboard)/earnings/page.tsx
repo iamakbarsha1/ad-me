@@ -23,10 +23,10 @@ interface EarningEvent {
 }
 
 interface EarningsHistoryResponse {
-  events?: EarningEvent[];
-  history?: EarningEvent[];
+  earnings?: EarningEvent[];
   total?: number;
   page?: number;
+  pagination?: { total: number; totalPages: number; page: number; limit: number };
 }
 
 function formatINR(paise: number): string {
@@ -75,7 +75,7 @@ export default function EarningsPage() {
     setHistoryError('');
     try {
       const data = await apiAuthGet<EarningsHistoryResponse>(`/earnings/history?page=${p}&limit=${LIMIT}`);
-      const list = data.events ?? data.history ?? [];
+      const list = data.earnings ?? [];
       setEvents(list);
       setHasMore(list.length === LIMIT);
     } catch (e) {
