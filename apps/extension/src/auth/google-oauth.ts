@@ -12,7 +12,7 @@ export class GoogleOAuthFlow {
     try {
       const token = await vscode.window.showInputBox({
         prompt: 'Paste your ad-me access token (Settings → Extension Token on ad-me web app)',
-        placeHolder: 'eyJhbGciOiJIUzI1NiIs...',
+        placeHolder: 'Paste your token here',
         password: true,
         ignoreFocusOut: true,
       });
