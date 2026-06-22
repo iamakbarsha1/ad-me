@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import type { AIToolAdapter } from './types.js';
+import type { AdServeResponse } from '@ad-me/shared';
+import { locateClaudeCodeWebview, extractVersion } from './locate.js';
+import { Patcher } from './patcher.js';
 
 export class ClaudeCodeAdapter implements AIToolAdapter {
   readonly name = 'claude-code';
@@ -7,15 +10,52 @@ export class ClaudeCodeAdapter implements AIToolAdapter {
   private thinkingStartCb: (() => void) | null = null;
   private thinkingEndCb: (() => void) | null = null;
   private isThinking = false;
-  private endTimer: NodeJS.Timeout | null = null;
   private disposables: vscode.Disposable[] = [];
-  private activeExecutions = 0;
+  private cycleTimer: NodeJS.Timeout | null = null;
+  private claudeTerminalActive = false;
 
-  // How long after last execution ends before we consider thinking done
-  private readonly END_DELAY_MS = 2000;
+  private patcher: Patcher | null = null;
+  private webviewPath: string | null = null;
+  private ccVersion: string | null = null;
+
+  // Ad cycle: show ad for AD_DURATION_MS, then pause for PAUSE_MS, repeat
+  private readonly AD_DURATION_MS = 30_000;
+  private readonly PAUSE_MS = 10_000;
 
   async detect(): Promise<boolean> {
-    return vscode.window.terminals.some((t) => this.isClaudeTerminal(t));
+    this.webviewPath = locateClaudeCodeWebview();
+    if (this.webviewPath) {
+      this.ccVersion = extractVersion(this.webviewPath);
+      this.patcher = new Patcher(this.webviewPath);
+      return this.patcher.isCompatible();
+    }
+    // Fallback: any terminal open (for status bar ads)
+    return vscode.window.terminals.length > 0;
+  }
+
+  /** Patch Claude Code's webview with ad content. */
+  patchWebview(ad: AdServeResponse): { ok: boolean; reason?: string } {
+    if (!this.patcher) return { ok: false, reason: 'no patcher (CC not found)' };
+    return this.patcher.applyPatch({
+      adText: ad.ad.title,
+      ctaUrl: ad.ad.ctaUrl,
+      adId: ad.ad.id,
+    });
+  }
+
+  /** Restore Claude Code's original webview. */
+  restoreWebview(): { ok: boolean; restored: boolean; reason?: string } {
+    if (!this.patcher) return { ok: true, restored: false, reason: 'no patcher' };
+    return this.patcher.restore();
+  }
+
+  /** Check if webview is currently patched. */
+  isPatchedNow(): boolean {
+    return this.patcher?.isPatched() ?? false;
+  }
+
+  getVersion(): string | null {
+    return this.ccVersion;
   }
 
   onThinkingStart(callback: () => void): void {
@@ -27,81 +67,82 @@ export class ClaudeCodeAdapter implements AIToolAdapter {
     this.thinkingEndCb = callback;
   }
 
-  private isClaudeTerminal(terminal: vscode.Terminal): boolean {
-    return terminal.name.toLowerCase().includes('claude');
-  }
-
   private startMonitoring(): void {
-    // Shell execution events — detect when Claude runs commands
-    const startDisp = vscode.window.onDidStartTerminalShellExecution((e) => {
-      if (!this.isClaudeTerminal(e.terminal)) return;
-      this.activeExecutions++;
-      this.cancelEndTimer();
-      if (!this.isThinking) {
-        this.isThinking = true;
-        this.thinkingStartCb?.();
-      }
-    });
-
-    const endDisp = vscode.window.onDidEndTerminalShellExecution((e) => {
-      if (!this.isClaudeTerminal(e.terminal)) return;
-      this.activeExecutions = Math.max(0, this.activeExecutions - 1);
-      if (this.activeExecutions === 0) {
-        this.scheduleEnd();
-      }
-    });
-
-    // Terminal lifecycle — detect Claude terminal open/close
-    const openDisp = vscode.window.onDidOpenTerminal((t) => {
-      if (!this.isClaudeTerminal(t)) return;
-      if (!this.isThinking) {
-        this.isThinking = true;
-        this.thinkingStartCb?.();
-      }
+    const openDisp = vscode.window.onDidOpenTerminal(() => {
+      this.onClaudeActive();
     });
 
     const closeDisp = vscode.window.onDidCloseTerminal((t) => {
-      if (!this.isClaudeTerminal(t)) return;
-      this.endThinking();
+      const stillActive = vscode.window.terminals.some(
+        (term) => term !== t,
+      );
+      if (!stillActive) {
+        this.onClaudeInactive();
+      }
     });
 
-    this.disposables.push(startDisp, endDisp, openDisp, closeDisp);
+    this.disposables.push(openDisp, closeDisp);
 
-    // If Claude terminal already exists, start immediately
-    if (vscode.window.terminals.some((t) => this.isClaudeTerminal(t))) {
-      this.isThinking = true;
-      this.thinkingStartCb?.();
+    if (vscode.window.terminals.length > 0) {
+      this.onClaudeActive();
     }
   }
 
-  private scheduleEnd(): void {
-    this.cancelEndTimer();
-    this.endTimer = setTimeout(() => {
-      this.endTimer = null;
-      // Only end if no new executions started
-      if (this.activeExecutions === 0) {
-        this.endThinking();
-      }
-    }, this.END_DELAY_MS);
+  private onClaudeActive(): void {
+    if (this.claudeTerminalActive) return;
+    this.claudeTerminalActive = true;
+    this.startAdCycle();
   }
 
-  private cancelEndTimer(): void {
-    if (this.endTimer) {
-      clearTimeout(this.endTimer);
-      this.endTimer = null;
-    }
-  }
-
-  private endThinking(): void {
-    this.cancelEndTimer();
+  private onClaudeInactive(): void {
+    this.claudeTerminalActive = false;
+    this.stopAdCycle();
     if (this.isThinking) {
       this.isThinking = false;
       this.thinkingEndCb?.();
     }
   }
 
+  private startAdCycle(): void {
+    this.isThinking = true;
+    this.thinkingStartCb?.();
+    this.scheduleNext();
+  }
+
+  private scheduleNext(): void {
+    this.clearCycleTimer();
+    this.cycleTimer = setTimeout(() => {
+      if (!this.claudeTerminalActive) return;
+
+      if (this.isThinking) {
+        this.isThinking = false;
+        this.thinkingEndCb?.();
+
+        this.cycleTimer = setTimeout(() => {
+          if (!this.claudeTerminalActive) return;
+          this.isThinking = true;
+          this.thinkingStartCb?.();
+          this.scheduleNext();
+        }, this.PAUSE_MS);
+      }
+    }, this.AD_DURATION_MS);
+  }
+
+  private stopAdCycle(): void {
+    this.clearCycleTimer();
+  }
+
+  private clearCycleTimer(): void {
+    if (this.cycleTimer) {
+      clearTimeout(this.cycleTimer);
+      this.cycleTimer = null;
+    }
+  }
+
   dispose(): void {
-    this.endThinking();
+    this.onClaudeInactive();
+    // Restore webview on deactivation
+    this.restoreWebview();
     this.disposables.forEach((d) => d.dispose());
     this.disposables = [];
     this.thinkingStartCb = null;

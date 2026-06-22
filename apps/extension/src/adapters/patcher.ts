@@ -6,6 +6,10 @@ const BLOCK_START = '/* AD-ME-START */';
 const BLOCK_END = '/* AD-ME-END */';
 const BLOCK_RE = /\/\* AD-ME-START \*\/[\s\S]*?\/\* AD-ME-END \*\//g;
 
+// Foreign injector patterns to strip from backups and source
+const FOREIGN_RE = /\/\* VIBE-ADS-START \*\/[\s\S]*?\/\* VIBE-ADS-END \*\//g;
+const FOREIGN_MARKER = '/* VIBE-ADS-START */';
+
 // Anchor verbs from Claude Code's spinner array — used as compatibility gate.
 const ANCHORS = [
   '"Discombobulating"', '"Flibbertigibbeting"', '"Combobulating"',
@@ -74,8 +78,8 @@ export class Patcher {
         return { ok: false, reason: 'verb array not found — incompatible CC build' };
       }
 
-      // Strip any previous ad-me block, append new one
-      let out = pristine.replace(BLOCK_RE, '').replace(/\s+$/, '');
+      // Strip any previous injection blocks (ours + foreign), append new one
+      let out = this.stripAllInjections(pristine);
       out = out + '\n' + this.renderBlock(params) + '\n';
 
       const outBuf = Buffer.from(out, 'utf8');
@@ -94,12 +98,12 @@ export class Patcher {
         return { ok: true, restored: false, reason: 'no backup present' };
       }
 
-      let pristine = readFileSync(bak);
-      // Safety: strip our block from backup if somehow tainted
-      if (pristine.indexOf(BLOCK_START) !== -1) {
-        pristine = Buffer.from(
-          pristine.toString('utf8').replace(BLOCK_RE, ''), 'utf8');
+      let pristineStr = readFileSync(bak, 'utf8');
+      // Safety: strip any injection blocks from backup
+      if (pristineStr.includes(BLOCK_START) || pristineStr.includes(FOREIGN_MARKER)) {
+        pristineStr = this.stripAllInjections(pristineStr);
       }
+      const pristine = Buffer.from(pristineStr, 'utf8');
 
       writeFileSync(this.target, pristine);
       rmSync(bak);
@@ -109,11 +113,21 @@ export class Patcher {
     }
   }
 
+  /** Strip all known injection blocks (ours + foreign). */
+  private stripAllInjections(src: string): string {
+    return src.replace(BLOCK_RE, '').replace(FOREIGN_RE, '').replace(/\s+$/, '');
+  }
+
   private ensureBackup(): string | null {
     const bak = this.backupPath();
     if (existsSync(bak)) {
-      const buf = readFileSync(bak, 'utf8');
-      // Tainted backup — delete and recapture
+      let buf = readFileSync(bak, 'utf8');
+      // Strip foreign injectors from backup if tainted
+      if (buf.includes(FOREIGN_MARKER)) {
+        buf = this.stripAllInjections(buf);
+        writeFileSync(bak, Buffer.from(buf, 'utf8'));
+      }
+      // Tainted with our own block or missing verb array — delete and recapture
       if (buf.includes(BLOCK_START) || !this.findVerbArray(buf)) {
         try { unlinkSync(bak); } catch { /* fall through */ }
       } else {
@@ -121,7 +135,11 @@ export class Patcher {
       }
     }
 
-    const raw = readFileSync(this.target, 'utf8');
+    let raw = readFileSync(this.target, 'utf8');
+    // Strip foreign injectors from source before capturing as pristine
+    if (raw.includes(FOREIGN_MARKER)) {
+      raw = this.stripAllInjections(raw);
+    }
     // Don't capture already-patched file as pristine
     if (raw.includes(BLOCK_START)) return null;
 

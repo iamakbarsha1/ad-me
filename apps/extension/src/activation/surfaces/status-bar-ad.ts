@@ -1,23 +1,17 @@
 import * as vscode from 'vscode';
 import type { AdServeResponse } from '@ad-me/shared';
+import type { StatusBarManager } from '../status-bar.js';
 
 export class StatusBarAdSurface implements vscode.Disposable {
-  private item: vscode.StatusBarItem;
+  private statusBar: StatusBarManager;
   private onClickCallback: ((adId: string, ctaUrl: string) => void) | null = null;
 
-  constructor() {
-    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+  constructor(statusBar: StatusBarManager) {
+    this.statusBar = statusBar;
   }
 
   show(ad: AdServeResponse): void {
-    this.item.text = `$(megaphone) ${ad.ad.title}`;
-    this.item.tooltip = 'Sponsored - Click to learn more';
-    this.item.command = {
-      command: 'ad-me.statusBarClick',
-      title: 'Open Ad',
-      arguments: [ad.ad.id, ad.ad.ctaUrl],
-    };
-    this.item.show();
+    this.statusBar.showAd(ad.ad.title, ad.ad.id, ad.ad.ctaUrl);
   }
 
   handleClick(adId: string, ctaUrl: string): void {
@@ -26,7 +20,7 @@ export class StatusBarAdSurface implements vscode.Disposable {
   }
 
   hide(): void {
-    this.item.hide();
+    this.statusBar.hideAd();
   }
 
   onAdClick(callback: (adId: string, ctaUrl: string) => void): void {
@@ -34,6 +28,6 @@ export class StatusBarAdSurface implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.item.dispose();
+    // StatusBarManager owns the item, nothing to dispose here
   }
 }

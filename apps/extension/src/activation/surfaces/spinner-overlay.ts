@@ -40,6 +40,7 @@ export class SpinnerOverlaySurface implements vscode.WebviewViewProvider, vscode
       return;
     }
 
+    this.view.show?.(true); // Reveal panel tab, keep focus in terminal
     this.view.webview.html = this.buildAdHtml(ad);
   }
 

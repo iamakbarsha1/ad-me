@@ -2,7 +2,7 @@
   "name": "ad-me",
   "displayName": "ad-me",
   "description": "Earn money from AI thinking time with sponsored ads",
-  "version": "0.0.9",
+  "version": "0.1.2",
   "publisher": "ad-me",
   "engines": {
     "vscode": "^1.87.0"
@@ -26,8 +26,18 @@
       { "command": "ad-me.login", "title": "ad-me: Sign In" },
       { "command": "ad-me.logout", "title": "ad-me: Sign Out" },
       { "command": "ad-me.toggleAds", "title": "ad-me: Toggle Ads" },
-      { "command": "ad-me.testFetch", "title": "ad-me: Test Ad Fetch" }
+      { "command": "ad-me.testFetch", "title": "ad-me: Test Ad Fetch" },
+      { "command": "ad-me.restore", "title": "ad-me: Restore Claude Code" }
     ],
+    "views": {
+      "panel": [
+        {
+          "type": "webview",
+          "id": "ad-me.spinnerOverlay",
+          "name": "ad-me Ads"
+        }
+      ]
+    },
     "configuration": {
       "title": "ad-me",
       "properties": {

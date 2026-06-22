@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Create surfaces
   const spinnerOverlay = new SpinnerOverlaySurface();
   const thinkingShimmer = new ThinkingShimmerSurface();
-  const statusBarAd = new StatusBarAdSurface();
+  const statusBarAd = new StatusBarAdSurface(statusBar);
   const spinnerVerb = new SpinnerVerbSurface();
 
   // Surface lookup by AdSurface type
@@ -151,6 +151,24 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('ad-me.statusBarClick', (adId: string, ctaUrl: string) => {
       statusBarAd.handleClick(adId, ctaUrl);
     }),
+    vscode.commands.registerCommand('ad-me.restore', () => {
+      log.info('Restore Claude Code initiated');
+      // Find any wired ClaudeCodeAdapter and restore
+      for (const name of wiredAdapterNames) {
+        if (name === 'claude-code') {
+          const adapter = new ClaudeCodeAdapter();
+          adapter.detect().then(() => {
+            const result = adapter.restoreWebview();
+            log.info(`Restore result: ${JSON.stringify(result)}`);
+            if (result.restored) {
+              vscode.window.showInformationMessage('ad-me: Claude Code restored to original');
+            } else {
+              vscode.window.showInformationMessage(`ad-me: ${result.reason || 'nothing to restore'}`);
+            }
+          });
+        }
+      }
+    }),
     vscode.commands.registerCommand('ad-me.testFetch', async () => {
       log.show();
       const isAuth = await tokenStore.isAuthenticated();
@@ -237,7 +255,6 @@ export function activate(context: vscode.ExtensionContext) {
       if (!ad) { log.warn('No ad available, skipping display'); return; }
 
       const idempotencyKey = crypto.randomUUID();
-
       const trackingKey = crypto.randomUUID();
 
       // Store active impression
@@ -249,8 +266,11 @@ export function activate(context: vscode.ExtensionContext) {
         surface: surfaceType,
       });
 
-      // Show the ad surface
+      // Show the ad on VS Code surfaces (status bar + webview panel)
       surface.show(ad);
+      if (surfaceType !== 'spinner_overlay') {
+        spinnerOverlay.show(ad);
+      }
 
       // Start impression tracking
       impressionTracker.startTracking(trackingKey, (durationMs) => {
@@ -261,7 +281,6 @@ export function activate(context: vscode.ExtensionContext) {
           surface: surfaceType,
           durationMs,
         }).then((result) => {
-          // Store real impressionId from server for click tracking
           const active = activeImpressions.get(adapter.name);
           if (active && active.trackingKey === trackingKey) {
             active.impressionId = result.id;
@@ -284,24 +303,42 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }
 
+  // Patch Claude Code webview once at activation with a default ad
+  async function patchAtActivation(adapter: ClaudeCodeAdapter): Promise<void> {
+    try {
+      if (adapter.isPatchedNow()) { log.info('[claude-code] already patched, skipping'); return; }
+      let ad = adService.getCached('status_bar');
+      if (!ad) ad = await adService.fetchNext('status_bar');
+      if (!ad) { log.warn('[claude-code] no ad for activation patch'); return; }
+      const result = adapter.patchWebview(ad);
+      log.info(`[claude-code] activation patch: ${result.ok ? 'ok' : result.reason}`);
+      if (result.ok) {
+        log.info('[claude-code] Reload window (Cmd+Shift+P → "Reload Window") to see ads in spinner');
+      }
+    } catch (err) {
+      log.error(`[claude-code] activation patch error: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   // Initialize lifecycle and wire adapters
   lifecycle.initialize().then(() => {
     const active = lifecycle.getActiveAdapters();
     log.info(`Lifecycle init: ${active.length} adapter(s) detected: ${active.map(a => a.name).join(', ') || 'none'}`);
     for (const adapter of active) {
       wireAdapter(adapter);
+      if (adapter instanceof ClaudeCodeAdapter) patchAtActivation(adapter);
     }
 
     // Late terminal detection: wire claude-code adapter if terminal opens after activation
     context.subscriptions.push(
       vscode.window.onDidOpenTerminal(async (terminal) => {
         log.info(`Terminal opened: "${terminal.name}"`);
-        if (!terminal.name.toLowerCase().includes('claude')) return;
         if (wiredAdapterNames.has('claude-code')) { log.info('claude-code adapter already wired'); return; }
         const adapter = new ClaudeCodeAdapter();
         if (await adapter.detect()) {
-          log.info('Late-detected Claude terminal, wiring adapter');
+          log.info('Late-detected terminal, wiring adapter');
           wireAdapter(adapter);
+          patchAtActivation(adapter);
           context.subscriptions.push(adapter);
         }
       })
